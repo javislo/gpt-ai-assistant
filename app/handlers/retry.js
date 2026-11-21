@@ -22,7 +22,7 @@ const exec = (context) => check(context) && (
     const prompt = getPrompt(context.userId);
     prompt.erase().write(PARTICIPANT_AI);
     try {
-      const { text, isFinishReasonStop } = await generateCompletion({ prompt: prompt.toString() });
+      const { text, isFinishReasonStop } = await generateCompletion({ messages: prompt.toMessages() });
       prompt.patch(text);
       setPrompt(context.userId, prompt);
       updateHistory(context.id, (history) => history.write(config.BOT_NAME, text));

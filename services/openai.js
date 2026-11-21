@@ -4,6 +4,10 @@ import config from '../config/index.js';
 export const PARTICIPANT_AI = 'AI';
 export const PARTICIPANT_HUMAN = 'Human';
 
+export const ROLE_SYSTEM = 'system';
+export const ROLE_USER = 'user';
+export const ROLE_ASSISTANT = 'assistant';
+
 export const FINISH_REASON_STOP = 'stop';
 export const FINISH_REASON_LENGTH = 'length';
 
@@ -24,25 +28,20 @@ instance.interceptors.request.use((c) => {
   return c;
 });
 
-const createCompletion = ({
+const createChatCompletion = ({
   model = config.OPENAI_COMPLETION_MODEL,
-  prompt,
+  messages,
   temperature = config.OPENAI_COMPLETION_TEMPERATURE,
   maxTokens = config.OPENAI_COMPLETION_MAX_TOKENS,
   frequencyPenalty = config.OPENAI_COMPLETION_FREQUENCY_PENALTY,
   presencePenalty = config.OPENAI_COMPLETION_PRESENCE_PENALTY,
-  stop = [
-    ` ${PARTICIPANT_AI}:`,
-    ` ${PARTICIPANT_HUMAN}:`,
-  ],
-}) => instance.post('/v1/completions', {
+}) => instance.post('/v1/chat/completions', {
   model,
-  prompt,
+  messages,
   temperature,
-  max_tokens: maxTokens,
+  max_completion_tokens: maxTokens,
   frequency_penalty: frequencyPenalty,
   presence_penalty: presencePenalty,
-  stop,
 });
 
 const createImage = ({
@@ -56,6 +55,6 @@ const createImage = ({
 });
 
 export {
-  createCompletion,
+  createChatCompletion,
   createImage,
 };

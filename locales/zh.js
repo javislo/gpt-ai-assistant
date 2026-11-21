@@ -100,6 +100,7 @@ const zh = {
   __COMPLETION_DEFAULT_AI_TONE: (tone) => (tone ? `以${tone}的語氣回應我：` : ''),
   __COMPLETION_SEARCH: (a, q) => `根據「${a}」查詢結果，回答「${q}」問題`,
   __COMPLETION_SEARCH_NOT_FOUND: '查無資料',
+  __COMPLETION_CONTINUE: '請接著你上一則回覆繼續寫下去，不要重複已經說過的內容。',
   __COMPLETION_QUOTATION_MARK_OPENING: '「',
   __COMPLETION_QUOTATION_MARK_CLOSING: '」',
   __ERROR_ECONNABORTED: '這個問題太複雜了',

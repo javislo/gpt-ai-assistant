@@ -21,7 +21,7 @@ const exec = (context) => check(context) && (
     const { lastSentence } = prompt;
     if (lastSentence.isEnquiring) prompt.erase();
     try {
-      const { text, isFinishReasonStop } = await generateCompletion({ prompt: prompt.toString() });
+      const { text, isFinishReasonStop } = await generateCompletion({ messages: prompt.toMessages() });
       prompt.patch(text);
       if (lastSentence.isEnquiring && !isFinishReasonStop) prompt.write('', lastSentence.text);
       setPrompt(context.userId, prompt);

@@ -100,6 +100,7 @@ const ja = {
   __COMPLETION_DEFAULT_AI_TONE: (tone) => (tone ? `以${tone}的語氣回應我：` : ''), // TODO
   __COMPLETION_SEARCH: (a, q) => `根據「${a}」查詢結果，回答「${q}」問題`, // TODO
   __COMPLETION_SEARCH_NOT_FOUND: '查無資料', // TODO
+  __COMPLETION_CONTINUE: '前の返答の続きを、すでに書いた内容を繰り返さずに書いてください。',
   __COMPLETION_QUOTATION_MARK_OPENING: '「',
   __COMPLETION_QUOTATION_MARK_CLOSING: '」',
   __ERROR_ECONNABORTED: '接続がタイムアウトしました。',
