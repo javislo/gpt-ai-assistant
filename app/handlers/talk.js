@@ -25,7 +25,9 @@ const exec = (context) => check(context) && (
   async () => {
     const prompt = getPrompt(context.userId);
     try {
-      if (context.event.isText) {
+      // Audio messages are transcribed during context initialization, so
+      // context.trimmedText holds the transcription and is sent like text.
+      if (context.event.isText || context.event.isAudio) {
         prompt.write(ROLE_HUMAN, `${t('__COMPLETION_DEFAULT_AI_TONE')(config.BOT_TONE)}${context.trimmedText}`).write(ROLE_AI);
       }
       if (context.event.isImage) {
