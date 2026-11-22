@@ -3,6 +3,7 @@ import { handleEvents, printPrompts } from '../app/index.js';
 import config from '../config/index.js';
 import { validateLineSignature } from '../middleware/index.js';
 import storage from '../storage/index.js';
+import { enqueueEvent, isAsyncEnabled } from '../services/async-queue.js';
 import { fetchVersion, getVersion } from '../utils/index.js';
 
 const app = express();
@@ -25,8 +26,18 @@ app.get('/', async (req, res) => {
 
 app.post(config.APP_WEBHOOK_PATH, validateLineSignature, async (req, res) => {
   try {
-    await storage.initialize();
-    await handleEvents(req.body.events);
+    if (isAsyncEnabled()) {
+      // Enqueue first; acknowledge LINE only once the durable queue accepts every event.
+      // Unsupported and group events are deliberately not processed by the private agent.
+      const events = (req.body.events || []).filter((e) => (
+        e.type === 'message' && e.source?.type === 'user'
+        && ['text', 'audio', 'image'].includes(e.message?.type)
+      ));
+      for (const event of events) await enqueueEvent(event);
+    } else {
+      await storage.initialize();
+      await handleEvents(req.body.events);
+    }
     res.sendStatus(200);
   } catch (err) {
     console.error(err.message);
