@@ -268,7 +268,6 @@ class Context {
     if (err.response?.status === 429) {
       // Free tier quota exhausted: stop here. There is no fallback to a paid model.
       return this.pushText(t('__ERROR_QUOTA_EXCEEDED'));
-
     }
     if (err.response?.status >= 500) {
       if (config.ERROR_MESSAGE_DISABLED) return this;
