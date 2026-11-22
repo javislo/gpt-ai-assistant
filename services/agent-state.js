@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 const usageContext = new AsyncLocalStorage();
 const hash = (value) => createHash('sha256').update(String(value)).digest('hex');
-const key = (type, id) => 'line-agent:' + type + ':' + hash(id);
+const key = (type, id) => `line-agent:${type}:${hash(id)}`;
 
 const redis = async (...command) => {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -11,11 +11,11 @@ const redis = async (...command) => {
   if (!url || !token || !/^https:\/\//.test(url)) throw new Error('Upstash Redis is not configured');
   const response = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(command),
     signal: AbortSignal.timeout(5000),
   });
-  if (!response.ok) throw new Error('Redis HTTP ' + response.status);
+  if (!response.ok) throw new Error(`Redis HTTP ${response.status}`);
   const data = await response.json();
   if (data.error) throw new Error('Redis command rejected');
   return data.result;
@@ -107,12 +107,22 @@ export const reserveModelCall = async () => {
     || !Number.isSafeInteger(minuteLimit) || minuteLimit < 2) {
     throw new Error('Invalid Gemini rate limit configuration');
   }
-  const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei',
-    year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const day = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
   const minute = Math.floor(Date.now() / 60000);
-  const result = await redis('EVAL', QUOTA, 2,
-    'line-agent:quota:day:' + day, 'line-agent:quota:minute:' + minute,
-    dayLimit, minuteLimit);
+  const result = await redis(
+    'EVAL',
+    QUOTA,
+    2,
+    `line-agent:quota:day:${day}`,
+    `line-agent:quota:minute:${minute}`,
+    dayLimit,
+    minuteLimit,
+  );
   if (result < 0) {
     const error = new Error('Daily or per-minute Gemini request limit reached');
     error.response = { status: 429 };

@@ -2,15 +2,20 @@ import express from 'express';
 import { handleEvents, getPrompt, setPrompt } from '../app/index.js';
 import Prompt from '../app/prompt/prompt.js';
 import PromptMessage from '../app/prompt/message.js';
-import { acquireEvent, completeEvent, releaseEvent, loadResult, loadMemory, withUsageMeter } from '../services/agent-state.js';
+import {
+  acquireEvent, completeEvent, releaseEvent, loadResult, loadMemory, withUsageMeter,
+} from '../services/agent-state.js';
 import { isAsyncEnabled, verifyWorkerSecret, verifyQstashSignature } from '../services/async-queue.js';
 import { push } from '../services/line.js';
 import { retryKeyForEvent, withAsyncDelivery } from '../utils/reply-message.js';
 
 const app = express();
-app.use(express.json({ limit: '200kb', verify: (req, res, buffer) => {
-  req.rawBody = buffer.toString();
-} }));
+app.use(express.json({
+  limit: '200kb',
+  verify: (req, res, buffer) => {
+    req.rawBody = buffer.toString();
+  },
+}));
 
 app.post('/', async (req, res) => {
   if (!isAsyncEnabled()) return res.sendStatus(404);
@@ -48,8 +53,10 @@ app.post('/', async (req, res) => {
         prompt.messages = saved.map((message) => new PromptMessage(message));
         setPrompt(userId, prompt);
       }
-      await withUsageMeter(() => withAsyncDelivery({ eventId, userId, getPrompt: () => getPrompt(userId) },
-        () => handleEvents([event])));
+      await withUsageMeter(() => withAsyncDelivery(
+        { eventId, userId, getPrompt: () => getPrompt(userId) },
+        () => handleEvents([event]),
+      ));
       // Successful handling with no result (unsupported message) is intentional.
       // The intake handler filters out unsupported kinds before enqueueing.
     }

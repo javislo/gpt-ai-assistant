@@ -8,7 +8,8 @@ const delivery = new AsyncLocalStorage();
 export const withAsyncDelivery = (state, callback) => delivery.run(state, callback);
 
 export const retryKeyForEvent = (id) => {
-  const h = createHash('sha256').update(String(id)).digest('hex').slice(0, 32).split('');
+  const h = createHash('sha256').update(String(id)).digest('hex').slice(0, 32)
+    .split('');
   h[12] = '4';
   h[16] = '89ab'[parseInt(h[16], 16) % 4];
   const s = h.join('');

@@ -3,7 +3,7 @@ import { eventFingerprint } from './agent-state.js';
 
 const required = (name) => {
   const value = process.env[name];
-  if (!value) throw new Error('Missing async queue configuration: ' + name);
+  if (!value) throw new Error(`Missing async queue configuration: ${name}`);
   return value;
 };
 
@@ -38,7 +38,7 @@ export const verifyQstashSignature = (jwt, body) => {
     return ['QSTASH_CURRENT_SIGNING_KEY', 'QSTASH_NEXT_SIGNING_KEY'].some((name) => {
       const secret = required(name);
       const expected = createHmac('sha256', secret)
-        .update(header64 + '.' + payload64).digest();
+        .update(`${header64}.${payload64}`).digest();
       return expected.length === signature.length && timingSafeEqual(expected, signature);
     });
   } catch {
@@ -54,21 +54,21 @@ export const enqueueEvent = async (event) => {
   const origin = required('LINE_WORKER_ORIGIN');
   const target = new URL('/api/worker', origin);
   if (target.protocol !== 'https:') throw new Error('Worker URL must use HTTPS');
-  const endpoint = 'https://qstash.upstash.io/v2/publish/' + target.toString();
+  const endpoint = `https://qstash.upstash.io/v2/publish/${target.toString()}`;
   const id = event.webhookEventId;
   if (!id || typeof id !== 'string') throw new Error('LINE webhookEventId is required for deduplication');
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: 'Bearer ' + token,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Upstash-Forward-X-Agent-Worker-Key': process.env.LINE_WORKER_SECRET,
-      'Upstash-Deduplication-Id': 'line-event-' + eventFingerprint(id),
+      'Upstash-Deduplication-Id': `line-event-${eventFingerprint(id)}`,
       'Upstash-Retries': '4',
     },
     body: JSON.stringify({ event }),
     signal: AbortSignal.timeout(5000),
   });
-  if (!response.ok) throw new Error('QStash publish failed with status ' + response.status);
+  if (!response.ok) throw new Error(`QStash publish failed with status ${response.status}`);
   return response.json();
 };
