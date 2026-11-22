@@ -55,6 +55,11 @@ const push = ({
   retryKey,
 }) => client.post('/v2/bot/message/push', { to, messages }, {
   headers: { 'X-Line-Retry-Key': retryKey },
+}).catch((error) => {
+  // LINE returns 409 when the same retry key was previously accepted.
+  // This confirms delivery request acceptance, not a new failure to retry.
+  if (error.response?.status === 409) return error.response;
+  throw error;
 });
 
 const fetchGroupSummary = ({
