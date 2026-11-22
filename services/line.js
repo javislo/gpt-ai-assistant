@@ -49,6 +49,14 @@ const reply = ({
   messages,
 });
 
+const push = ({
+  to,
+  messages,
+  retryKey,
+}) => client.post('/v2/bot/message/push', { to, messages }, {
+  headers: { 'X-Line-Retry-Key': retryKey },
+});
+
 const fetchGroupSummary = ({
   groupId,
 }) => client.get(`/v2/bot/group/${groupId}/summary`);
@@ -85,6 +93,7 @@ const fetchContent = ({
 
 export {
   reply,
+  push,
   fetchGroupSummary,
   fetchProfile,
   fetchContent,
