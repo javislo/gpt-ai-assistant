@@ -17,7 +17,8 @@ app.use(express.json({
   },
 }));
 
-app.post('/', async (req, res) => {
+// On Vercel the function receives the full request path (/api/worker); '/' is kept for local use.
+app.post(['/api/worker', '/'], async (req, res) => {
   if (!isAsyncEnabled()) return res.sendStatus(404);
   let valid = false;
   try {
