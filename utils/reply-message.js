@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import config from '../config/index.js';
 import { reply, push } from '../services/line.js';
 import { saveResult, saveMemory } from '../services/agent-state.js';
-import { getPrompt } from '../app/prompt/index.js';
 
 const delivery = new AsyncLocalStorage();
 export const withAsyncDelivery = (state, callback) => delivery.run(state, callback);
@@ -25,7 +24,7 @@ const replyMessage = async ({
   if (!state) return reply({ replyToken, messages });
   // Persist the result before attempting delivery. A retried worker can replay
   // the same LINE push with the same retry key without regenerating Gemini text.
-  await saveMemory(state.userId, getPrompt(state.userId).messages);
+  await saveMemory(state.userId, state.getPrompt().messages);
   await saveResult(state.eventId, messages);
   return push({ to: state.userId, messages, retryKey: retryKeyForEvent(state.eventId) });
 };
