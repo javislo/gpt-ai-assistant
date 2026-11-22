@@ -1,6 +1,7 @@
 import express from 'express';
 import { handleEvents, getPrompt, setPrompt } from '../app/index.js';
 import Prompt from '../app/prompt/prompt.js';
+import PromptMessage from '../app/prompt/message.js';
 import { acquireEvent, completeEvent, releaseEvent, loadResult, loadMemory, withUsageMeter } from '../services/agent-state.js';
 import { isAsyncEnabled, verifyWorkerSecret, verifyQstashSignature } from '../services/async-queue.js';
 import { push } from '../services/line.js';
@@ -44,7 +45,7 @@ app.post('/', async (req, res) => {
       const saved = await loadMemory(userId);
       if (saved) {
         const prompt = new Prompt();
-        prompt.messages = saved;
+        prompt.messages = saved.map((message) => new PromptMessage(message));
         setPrompt(userId, prompt);
       }
       await withUsageMeter(() => withAsyncDelivery({ eventId, userId },
