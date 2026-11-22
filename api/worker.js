@@ -2,18 +2,21 @@ import express from 'express';
 import { handleEvents, getPrompt, setPrompt } from '../app/index.js';
 import Prompt from '../app/prompt/prompt.js';
 import { acquireEvent, completeEvent, releaseEvent, loadResult, loadMemory, withUsageMeter } from '../services/agent-state.js';
-import { isAsyncEnabled, verifyWorkerSecret } from '../services/async-queue.js';
+import { isAsyncEnabled, verifyWorkerSecret, verifyQstashSignature } from '../services/async-queue.js';
 import { push } from '../services/line.js';
 import { retryKeyForEvent, withAsyncDelivery } from '../utils/reply-message.js';
 
 const app = express();
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '200kb', verify: (req, res, buffer) => {
+  req.rawBody = buffer.toString();
+} }));
 
 app.post('/', async (req, res) => {
   if (!isAsyncEnabled()) return res.sendStatus(404);
   let valid = false;
   try {
-    valid = verifyWorkerSecret(req.header('x-agent-worker-key'));
+    valid = verifyWorkerSecret(req.header('x-agent-worker-key'))
+      && verifyQstashSignature(req.header('upstash-signature'), req.rawBody);
   } catch {
     return res.sendStatus(503);
   }
