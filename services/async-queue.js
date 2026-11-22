@@ -33,7 +33,7 @@ export const verifyQstashSignature = (jwt, body) => {
       || typeof payload.nbf !== 'number' || now >= payload.exp
       || now < payload.nbf || payload.exp - now > 3600) return false;
     const digest = createHash('sha256').update(body).digest('base64url');
-    if (payload.body !== digest) return false;
+    if (typeof payload.body !== 'string' || payload.body.replace(/=+$/, '') !== digest) return false;
     const signature = Buffer.from(signature64, 'base64url');
     return ['QSTASH_CURRENT_SIGNING_KEY', 'QSTASH_NEXT_SIGNING_KEY'].some((name) => {
       const secret = required(name);
