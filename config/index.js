@@ -32,7 +32,7 @@ const config = Object.freeze({
   VERCEL_TEAM_ID: env.VERCEL_TEAM_ID || null,
   VERCEL_ACCESS_TOKEN: env.VERCEL_ACCESS_TOKEN || null,
   VERCEL_DEPLOY_HOOK_URL: env.VERCEL_DEPLOY_HOOK_URL || null,
-  GEMINI_TIMEOUT: env.GEMINI_TIMEOUT || env.APP_API_TIMEOUT,
+  GEMINI_TIMEOUT: env.GEMINI_TIMEOUT || 15000,
   GEMINI_API_KEY: env.GEMINI_API_KEY || null,
   GEMINI_BASE_URL: env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com',
   GEMINI_API_VERSION: env.GEMINI_API_VERSION || 'v1beta',
