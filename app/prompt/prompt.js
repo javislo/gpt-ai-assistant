@@ -1,7 +1,7 @@
 import { encode } from 'gpt-3-encoder';
 import config from '../../config/index.js';
 import { t } from '../../locales/index.js';
-import { ROLE_AI, ROLE_HUMAN, ROLE_SYSTEM } from '../../services/openai.js';
+import { ROLE_AI, ROLE_HUMAN, ROLE_SYSTEM } from '../../services/gemini.js';
 import { addMark } from '../../utils/index.js';
 import Message from './message.js';
 
@@ -51,19 +51,19 @@ class Prompt {
 
   /**
    * @param {string} role
-   * @param {string} content
+   * @param {string} content image as a base64 data URL
    */
   writeImage(role, content = '') {
+    const [, mimeType = 'image/jpeg', data = ''] = /^data:([^;,]+);base64,(.*)$/s.exec(content) || [];
     const imageContent = [
       {
         type: 'text',
         text: t('__COMPLETION_VISION'),
       },
       {
-        type: 'image_url',
-        image_url: {
-          url: content,
-        },
+        type: 'image',
+        mimeType,
+        data,
       },
     ];
     this.messages.push(new Message({ role, content: imageContent }));

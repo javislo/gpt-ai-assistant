@@ -1,5 +1,4 @@
 import { AxiosError } from 'axios';
-import fs from 'fs';
 import config from '../config/index.js';
 import { t } from '../locales/index.js';
 import {
@@ -180,9 +179,7 @@ class Context {
 
   async transcribeAudio() {
     const buffer = await fetchAudio(this.event.messageId);
-    const file = `/tmp/${this.event.messageId}.m4a`;
-    fs.writeFileSync(file, buffer);
-    const { text } = await generateTranscription({ file, buffer });
+    const { text } = await generateTranscription({ buffer });
     this.transcription = convertText(text);
   }
 
@@ -267,6 +264,10 @@ class Context {
     if (err.code === 'ECONNABORTED') {
       if (config.ERROR_MESSAGE_DISABLED) return this;
       return this.pushText(t('__ERROR_ECONNABORTED'), [COMMAND_BOT_RETRY, COMMAND_BOT_FORGET]);
+    }
+    if (err.response?.status === 429) {
+      // Free tier quota exhausted: stop here. There is no fallback to a paid model.
+      return this.pushText(t('__ERROR_QUOTA_EXCEEDED'), [COMMAND_BOT_RETRY]);
     }
     if (err.response?.status >= 500) {
       if (config.ERROR_MESSAGE_DISABLED) return this;

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Breaking Changes
+
+- Replace OpenAI with the native Google Gemini API (`GEMINI_API_KEY`, `GEMINI_MODEL`); all `OPENAI_*` variables are removed
+- Disable image generation (`draw`), which the Gemini free tier does not provide
+
+### New Features
+
+- Transcribe LINE voice messages with Gemini audio understanding
+- Reply with a quota message on HTTP 429 instead of falling back to another model
+
+### Bug Fixes
+
+- Add the transcription of voice messages to the chat prompt
+
 ## 4.9.1 (2024-07-10)
 
 ### Bug Fixes
