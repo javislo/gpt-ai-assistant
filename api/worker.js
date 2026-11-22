@@ -48,7 +48,7 @@ app.post('/', async (req, res) => {
         prompt.messages = saved.map((message) => new PromptMessage(message));
         setPrompt(userId, prompt);
       }
-      await withUsageMeter(() => withAsyncDelivery({ eventId, userId },
+      await withUsageMeter(() => withAsyncDelivery({ eventId, userId, getPrompt: () => getPrompt(userId) },
         () => handleEvents([event])));
       // Successful handling with no result (unsupported message) is intentional.
       // The intake handler filters out unsupported kinds before enqueueing.
