@@ -33,7 +33,7 @@ app.post(config.APP_WEBHOOK_PATH, validateLineSignature, async (req, res) => {
         e.type === 'message' && e.source?.type === 'user'
         && ['text', 'audio', 'image'].includes(e.message?.type)
       ));
-      for (const event of events) await enqueueEvent(event);
+      await Promise.all(events.map((event) => enqueueEvent(event)));
     } else {
       await storage.initialize();
       await handleEvents(req.body.events);
