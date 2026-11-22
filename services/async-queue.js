@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { eventFingerprint } from './agent-state.js';
 
 const required = (name) => {
@@ -15,6 +15,35 @@ export const verifyWorkerSecret = (provided) => {
   const actual = createHmac('sha256', secret).update('agent-worker').digest();
   const received = createHmac('sha256', provided).update('agent-worker').digest();
   return timingSafeEqual(actual, received);
+};
+
+// Verify QStash's signed JWT against the exact raw request bytes and destination.
+// A forwarded custom header alone would not authenticate the payload.
+export const verifyQstashSignature = (jwt, body) => {
+  if (typeof jwt !== 'string' || typeof body !== 'string') return false;
+  try {
+    const [header64, payload64, signature64, extra] = jwt.split('.');
+    if (!header64 || !payload64 || !signature64 || extra) return false;
+    const header = JSON.parse(Buffer.from(header64, 'base64url').toString());
+    const payload = JSON.parse(Buffer.from(payload64, 'base64url').toString());
+    if (header.alg !== 'HS256' || payload.iss !== 'Upstash') return false;
+    const dest = new URL('/api/worker', required('LINE_WORKER_ORIGIN')).toString();
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.sub !== dest || typeof payload.exp !== 'number'
+      || typeof payload.nbf !== 'number' || now >= payload.exp
+      || now < payload.nbf || payload.exp - now > 3600) return false;
+    const digest = createHash('sha256').update(body).digest('base64url');
+    if (payload.body !== digest) return false;
+    const signature = Buffer.from(signature64, 'base64url');
+    return ['QSTASH_CURRENT_SIGNING_KEY', 'QSTASH_NEXT_SIGNING_KEY'].some((name) => {
+      const secret = required(name);
+      const expected = createHmac('sha256', secret)
+        .update(header64 + '.' + payload64).digest();
+      return expected.length === signature.length && timingSafeEqual(expected, signature);
+    });
+  } catch {
+    return false;
+  }
 };
 
 export const enqueueEvent = async (event) => {
