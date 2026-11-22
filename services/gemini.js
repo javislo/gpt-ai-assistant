@@ -1,5 +1,6 @@
 import axios from 'axios';
 import config from '../config/index.js';
+import { reserveModelCall } from './agent-state.js';
 import { handleFulfilled, handleRejected, handleRequest } from './utils/index.js';
 
 // Roles used inside the app's prompt. They are mapped to Gemini roles per request.
@@ -43,7 +44,7 @@ client.interceptors.response.use(handleFulfilled, (err) => {
  * @param {Object} [param.systemInstruction]
  * @param {Object} [param.generationConfig]
  */
-const generateContent = ({
+const generateContent = async ({
   model,
   contents,
   systemInstruction,
@@ -52,6 +53,7 @@ const generateContent = ({
   const body = { contents };
   if (systemInstruction) body.systemInstruction = systemInstruction;
   if (generationConfig) body.generationConfig = generationConfig;
+  await reserveModelCall();
   return client.post(`/${config.GEMINI_API_VERSION}/models/${encodeURIComponent(model)}:generateContent`, body);
 };
 
