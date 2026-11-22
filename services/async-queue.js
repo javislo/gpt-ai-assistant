@@ -7,6 +7,17 @@ const required = (name) => {
   return value;
 };
 
+const QUEUE_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+// Messages go through a QStash queue. Create it once in the Upstash console with
+// parallelism 1: that makes delivery FIFO, so one user's messages are handled in
+// the order they were enqueued and never compete for the per-user lease.
+export const queueName = () => {
+  const name = process.env.QSTASH_QUEUE_NAME || 'line-agent';
+  if (!QUEUE_NAME_PATTERN.test(name)) throw new Error('Invalid QSTASH_QUEUE_NAME');
+  return name;
+};
+
 export const isAsyncEnabled = () => process.env.LINE_ASYNC_ENABLED === 'true';
 
 export const verifyWorkerSecret = (provided) => {
@@ -54,7 +65,7 @@ export const enqueueEvent = async (event) => {
   const origin = required('LINE_WORKER_ORIGIN');
   const target = new URL('/api/worker', origin);
   if (target.protocol !== 'https:') throw new Error('Worker URL must use HTTPS');
-  const endpoint = `https://qstash.upstash.io/v2/publish/${target.toString()}`;
+  const endpoint = `https://qstash.upstash.io/v2/enqueue/${queueName()}/${target.toString()}`;
   const id = event.webhookEventId;
   if (!id || typeof id !== 'string') throw new Error('LINE webhookEventId is required for deduplication');
   const response = await fetch(endpoint, {

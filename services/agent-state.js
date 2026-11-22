@@ -21,19 +21,23 @@ const redis = async (...command) => {
   return data.result;
 };
 
-const ACQUIRE = `
+// Lease TTL is a little longer than the Vercel maxDuration (55 s), so a lease left by
+// a crashed worker expires soon after the platform has stopped that invocation.
+export const LEASE_TTL_SECONDS = 70;
+
+export const ACQUIRE = `
 if redis.call('EXISTS', KEYS[1]) == 1 then return 'done' end
 if redis.call('EXISTS', KEYS[2]) == 1 or redis.call('EXISTS', KEYS[3]) == 1 then return 'busy' end
-redis.call('SET', KEYS[2], ARGV[1], 'EX', 120)
-redis.call('SET', KEYS[3], ARGV[1], 'EX', 120)
+redis.call('SET', KEYS[2], ARGV[1], 'EX', tonumber(ARGV[2]))
+redis.call('SET', KEYS[3], ARGV[1], 'EX', tonumber(ARGV[2]))
 return 'acquired'
 `;
-const RELEASE = `
+export const RELEASE = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then redis.call('DEL', KEYS[1]) end
 if redis.call('GET', KEYS[2]) == ARGV[1] then redis.call('DEL', KEYS[2]) end
 return 1
 `;
-const COMPLETE = `
+export const COMPLETE = `
 if redis.call('GET', KEYS[2]) ~= ARGV[1] then return 0 end
 redis.call('SET', KEYS[1], '1', 'EX', 604800)
 redis.call('DEL', KEYS[2])
@@ -48,7 +52,7 @@ const eventKeys = (eventId, userId) => [
 export const acquireEvent = async (eventId, userId) => {
   const token = randomUUID();
   const keys = eventKeys(eventId, userId);
-  const status = await redis('EVAL', ACQUIRE, 3, ...keys, token);
+  const status = await redis('EVAL', ACQUIRE, 3, ...keys, token, LEASE_TTL_SECONDS);
   return { status, token, keys };
 };
 
@@ -70,22 +74,30 @@ export const saveResult = async (id, messages) => {
   await redis('SET', key('result', id), JSON.stringify(messages), 'EX', 604800);
 };
 
+/**
+ * Conversation state persisted per user: the Gemini prompt (memory) and the
+ * history used by the summary/translation commands. Older records stored the
+ * prompt messages as a bare array; they are still accepted.
+ * @returns {Promise<{prompt: Array<Object>, history: Array<Object>}|null>}
+ */
 export const loadMemory = async (userId) => {
   const data = await redis('GET', key('memory', userId));
   if (!data) return null;
-  const messages = JSON.parse(data);
-  return Array.isArray(messages) ? messages : null;
+  const parsed = JSON.parse(data);
+  if (Array.isArray(parsed)) return { prompt: parsed, history: [] };
+  if (!parsed || !Array.isArray(parsed.prompt)) return null;
+  return { prompt: parsed.prompt, history: Array.isArray(parsed.history) ? parsed.history : [] };
 };
 
-export const saveMemory = async (userId, messages) => {
-  await redis('SET', key('memory', userId), JSON.stringify(messages), 'EX', 604800);
+export const saveMemory = async (userId, prompt, history = []) => {
+  await redis('SET', key('memory', userId), JSON.stringify({ prompt, history }), 'EX', 604800);
 };
 
 export const clearMemory = async (userId) => {
   await redis('DEL', key('memory', userId));
 };
 
-const QUOTA = `
+export const QUOTA = `
 local day = tonumber(redis.call('GET', KEYS[1]) or '0')
 local minute = tonumber(redis.call('GET', KEYS[2]) or '0')
 if day >= tonumber(ARGV[1]) then return -1 end
@@ -128,6 +140,38 @@ export const reserveModelCall = async () => {
     error.response = { status: 429 };
     throw error;
   }
+};
+
+// App storage (user/group sources, including the bot's activated state).
+// One Redis hash; each field is "<storage key>:<entry id>" so that writes for one
+// user never overwrite another user's entry.
+const STORAGE_KEY = 'line-agent:storage:v1';
+
+export const isRedisConfigured = () => Boolean(
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
+);
+
+export const loadStorageData = async () => {
+  const flat = (await redis('HGETALL', STORAGE_KEY)) || [];
+  const data = {};
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    const field = String(flat[i]);
+    const separator = field.indexOf(':');
+    if (separator > 0) {
+      const name = field.slice(0, separator);
+      data[name] = data[name] || {};
+      data[name][field.slice(separator + 1)] = JSON.parse(flat[i + 1]);
+    }
+  }
+  return data;
+};
+
+export const saveStorageItem = async (name, value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || name.includes(':')) {
+    throw new Error(`Unsupported storage item: ${name}`);
+  }
+  const fields = Object.entries(value).flatMap(([id, entry]) => [`${name}:${id}`, JSON.stringify(entry)]);
+  if (fields.length > 0) await redis('HSET', STORAGE_KEY, ...fields);
 };
 
 export const eventFingerprint = (eventId) => hash(eventId);

@@ -25,7 +25,7 @@ const replyMessage = async ({
   if (!state) return reply({ replyToken, messages });
   // Persist the result before attempting delivery. A retried worker can replay
   // the same LINE push with the same retry key without regenerating Gemini text.
-  await saveMemory(state.userId, state.getPrompt().messages);
+  await saveMemory(state.userId, state.getPrompt().messages, state.getHistory ? state.getHistory().messages : []);
   await saveResult(state.eventId, messages);
   return push({ to: state.userId, messages, retryKey: retryKeyForEvent(state.eventId) });
 };

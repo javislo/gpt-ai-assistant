@@ -1,4 +1,4 @@
-import config from '../../config/index.js';
+import storage from '../../storage/index.js';
 import { t } from '../../locales/index.js';
 import { COMMAND_BOT_DEACTIVATE, GENERAL_COMMANDS } from '../commands/index.js';
 import Context from '../context.js';
@@ -18,7 +18,7 @@ const check = (context) => context.hasCommand(COMMAND_BOT_DEACTIVATE);
 const exec = (context) => check(context) && (
   async () => {
     updateHistory(context.id, (history) => history.erase());
-    if (!config.VERCEL_ACCESS_TOKEN) context.pushText(t('__ERROR_MISSING_ENV')('VERCEL_ACCESS_TOKEN'));
+    if (!storage.isPersistent) context.pushText(t('__ERROR_MISSING_ENV')('VERCEL_ACCESS_TOKEN'));
     try {
       await updateSources(context.id, (source) => {
         source.bot.isActivated = false;

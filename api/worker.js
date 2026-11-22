@@ -1,5 +1,10 @@
 import express from 'express';
-import { handleEvents, getPrompt, setPrompt } from '../app/index.js';
+import {
+  handleEvents, getPrompt, setPrompt, removePrompt,
+} from '../app/index.js';
+import History from '../app/history/history.js';
+import HistoryMessage from '../app/history/message.js';
+import { getHistory, removeHistory, setHistory } from '../app/history/index.js';
 import Prompt from '../app/prompt/prompt.js';
 import PromptMessage from '../app/prompt/message.js';
 import {
@@ -7,7 +12,26 @@ import {
 } from '../services/agent-state.js';
 import { isAsyncEnabled, verifyWorkerSecret, verifyQstashSignature } from '../services/async-queue.js';
 import { push } from '../services/line.js';
+import storage from '../storage/index.js';
 import { retryKeyForEvent, withAsyncDelivery } from '../utils/reply-message.js';
+
+/**
+ * Replaces this instance's in-memory prompt and history for the user with the
+ * persisted copy (or clears them when nothing is persisted).
+ */
+const restoreConversation = (userId, saved) => {
+  if (!saved) {
+    removePrompt(userId);
+    removeHistory(userId);
+    return;
+  }
+  const prompt = new Prompt();
+  prompt.messages = saved.prompt.map((message) => new PromptMessage(message));
+  setPrompt(userId, prompt);
+  const history = new History();
+  history.messages = saved.history.map((message) => new HistoryMessage(message));
+  setHistory(userId, history);
+};
 
 const app = express();
 app.use(express.json({
@@ -48,14 +72,14 @@ app.post(['/api/worker', '/'], async (req, res) => {
     if (result) {
       await push({ to: userId, messages: result, retryKey: retryKeyForEvent(eventId) });
     } else {
-      const saved = await loadMemory(userId);
-      if (saved) {
-        const prompt = new Prompt();
-        prompt.messages = saved.map((message) => new PromptMessage(message));
-        setPrompt(userId, prompt);
-      }
+      // Load shared state from Redis on every invocation; this instance may be new,
+      // or warm with state that another instance has since changed.
+      await storage.initialize();
+      restoreConversation(userId, await loadMemory(userId));
       await withUsageMeter(() => withAsyncDelivery(
-        { eventId, userId, getPrompt: () => getPrompt(userId) },
+        {
+          eventId, userId, getPrompt: () => getPrompt(userId), getHistory: () => getHistory(userId),
+        },
         () => handleEvents([event]),
       ));
       // Successful handling with no result (unsupported message) is intentional.

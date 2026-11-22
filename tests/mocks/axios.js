@@ -15,6 +15,7 @@ const createAxiosMock = () => {
       },
       get: jest.fn(),
       post: jest.fn(),
+      patch: jest.fn(),
     };
     clients[baseURL] = client;
     return client;

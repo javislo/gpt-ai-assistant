@@ -33,7 +33,8 @@ app.post(config.APP_WEBHOOK_PATH, validateLineSignature, async (req, res) => {
         e.type === 'message' && e.source?.type === 'user'
         && ['text', 'audio', 'image'].includes(e.message?.type)
       ));
-      await Promise.all(events.map((event) => enqueueEvent(event)));
+      // Enqueue one by one so a batch keeps LINE's order in the FIFO queue.
+      await events.reduce((previous, event) => previous.then(() => enqueueEvent(event)), Promise.resolve());
     } else {
       await storage.initialize();
       await handleEvents(req.body.events);

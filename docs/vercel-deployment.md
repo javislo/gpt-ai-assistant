@@ -57,43 +57,72 @@ Vercel 專案 → Settings → Environment Variables，新增或確認：
 
 ## 5. 可選：LINE 非同步工作流程（預設關閉）
 
-> 本階段僅提交程式與模擬測試，尚未設定第三方帳號，也沒有在 Vercel 部署或呼叫真實 Gemini。**在完全配置及驗收前維持 `LINE_ASYNC_ENABLED=false`。**
+> 目前只完成程式與模擬整合測試：沒有建立第三方帳號、沒有部署 Vercel、沒有呼叫真實 Gemini、QStash、Redis 或 LINE。**在完成第 5.4 節的驗收前，維持 `LINE_ASYNC_ENABLED=false`。**
 
-此模式適用於私人 LINE 一對一訊息，支援文字、圖片與語音；群組及其他事件不會排入工作佇列。架構：
+此模式只處理私人一對一訊息（文字、圖片、語音），群組與其他事件不會排入佇列。架構：
 
-`LINE（驗證 HMAC 簽章） → Vercel Webhook（QStash 成功排入後即回 200） → Upstash QStash → 簽章驗證 Worker → Upstash Redis 事件租約與記憶 → Gemini → LINE Push API`
+`LINE（HMAC 簽章驗證）→ Vercel /webhook（依序排入 QStash FIFO 佇列後回 200）→ QStash queue（parallelism 1）→ /api/worker（Worker 密碼＋QStash JWT 驗證）→ Upstash Redis（事件租約、去重、用量、記憶、使用者狀態）→ Gemini → LINE Push API`
 
-**新增免費服務（需自己手動申請）**：
-- Upstash QStash Free：持久化排程與失敗重送、10 分鐘發布去重。免費層目前有每日訊息限制（請以官網為準）。
-- Upstash Redis Free：透過 HTTPS REST 存事件處理狀態、共用用量計數與對話記憶。請確保資料庫和 QStash 都選 **Free**，不要啟用付費用量方案。
-- LINE Push API：因背景處理可能超過 Reply Token 的時效，不再依賴 Reply Token；Push 訊息可能計入 LINE 官方帳號月傳送額度，須自行核對剩餘額度與免費方案規則。**這個方案不是無限制免費推送。**
+### 5.1 免費服務與額度（請以各官網目前數字為準）
 
-在 Vercel Preview（不是 Production）設定：
+| 服務 | 用途 | 免費方案重點 |
+| --- | --- | --- |
+| Upstash QStash Free | 持久化佇列、失敗重送、10 分鐘發布去重 | 官方價格頁目前列出**每日 1,000 則訊息**、單則 1 MB、最多 10 個 queue、DLQ 保留 3 天。**每次重送也計入每日訊息數。** |
+| Upstash Redis Free | 事件租約與去重、Gemini 共用計數、對話記憶、使用者啟用狀態 | 有每日指令數與容量上限；每則訊息約使用數十個 Redis 指令。建立時選 **Free**，不要開啟 Pay as you go。 |
+| LINE Push API | 背景處理完成後推送回覆（不依賴 Reply Token） | **Push 訊息會計入 LINE 官方帳號的每月訊息額度**（Reply 不計入）。免費方案的月額度有限，用完後推送會失敗。請到 LINE Official Account Manager 確認方案與剩餘額度。**這不是無限制免費推送。** |
+| Gemini API Free Tier | AI 回覆 | 由本專案的共用計數再加一層上限（見下表）；Google 的實際免費額度請看 AI Studio。 |
 
-| 新變數 | 用途 |
+### 5.2 一次性設定
+
+1. **建立 QStash 佇列**：在 Upstash Console → QStash → Queues 建立名稱 `line-agent`（或你在 `QSTASH_QUEUE_NAME` 設定的名稱），**Parallelism 設為 1**。Parallelism 1 才是先進先出，同一使用者的訊息依序處理。佇列不存在時排入會失敗，Webhook 回 500。
+2. 建立 Upstash Redis（Free），記下 REST URL 與 REST Token。
+3. 在 Vercel **Preview**（不是 Production）設定下表變數。非同步模式的使用者啟用／停用狀態存在 Redis，**不需要** `VERCEL_ACCESS_TOKEN`。
+
+| 變數 | 用途 |
 | --- | --- |
-| `LINE_ASYNC_ENABLED` | 安全開關，預設 `false`，所有項目就緒後才設 `true` |
-| `LINE_WORKER_ORIGIN` | 本次 Vercel Preview 的 HTTPS 根網址，例如 `https://your-preview.vercel.app`（不含尾端路徑） |
-| `LINE_WORKER_SECRET` | 獨立的高熵隨機密碼，只在服務端環境變數儲存 |
-| `QSTASH_TOKEN` | QStash 專屬 Token |
-| `QSTASH_CURRENT_SIGNING_KEY` | 用於驗證 Upstash-Signature JWT |
-| `QSTASH_NEXT_SIGNING_KEY` | 用於簽章輪替 |
-| `UPSTASH_REDIS_REST_URL` | Redis REST HTTPS URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Redis REST Token |
-| `GEMINI_DAILY_REQUEST_LIMIT` | 台北日期每日呼叫限制，預設 8（**每次模型請求計一次**） |
-| `GEMINI_MINUTE_REQUEST_LIMIT` | 每分鐘請求上限，預設 4（音訊轉錄＋回答共需兩次） |
+| `LINE_ASYNC_ENABLED` | 安全開關，預設 `false`，完成驗收才在 Preview 設 `true` |
+| `LINE_WORKER_ORIGIN` | Preview 的固定分支網址，例如 `https://專案-git-分支-帳號.vercel.app`（不含路徑） |
+| `LINE_WORKER_SECRET` | 自己產生的高熵隨機字串（例如 `openssl rand -hex 32`） |
+| `QSTASH_TOKEN` | QStash Token |
+| `QSTASH_CURRENT_SIGNING_KEY`、`QSTASH_NEXT_SIGNING_KEY` | 驗證 QStash JWT 簽章與金鑰輪替 |
+| `QSTASH_QUEUE_NAME` | 選填，預設 `line-agent`（只能用英數、`-`、`_`） |
+| `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN` | Redis REST 連線 |
+| `GEMINI_DAILY_REQUEST_LIMIT` | 每日（台北時間）Gemini 呼叫上限，預設 8 |
+| `GEMINI_MINUTE_REQUEST_LIMIT` | 每分鐘上限，預設 4，最小 2 |
 
-新模式裡的 LINE webhook 原路徑保持不變，Worker 路徑是 `/api/worker`，所有事件均在 QStash 持久化後才回覆 LINE 成功；若排入失敗則回 500，讓 LINE 在開啟重送功能時有機會重送。工作者驗證轉送的 Worker Secret **及** QStash 的原始請求 HMAC/JWT 簽章、目標 URL、有效期限和 body 雜湊。請勿讓 Worker Secret、Gemini Key 或 Token 出現在 GitHub commit 或回應日誌。
+### 5.3 行為（已由模擬整合測試驗證）
 
-**持久化與重複處理：**
-- 事件和使用者鎖以 Redis Lua 原子操作取得，並以 `webhookEventId` 去重；完成狀態與 AI 回覆保留 7 天。
-- 已完成的 AI 回覆在推送前保存，重送工作者可使用相同 `X-Line-Retry-Key` 重新發送，不會重新產生回覆。若因回應遺失、鎖逾期或平台中斷，仍可能進入死信佇列，需要人工檢查。
-- 記憶儲存在 Redis 7 天，讓同一使用者跨 Vercel 執行個體能載入先前訊息；這不是永久記憶，且 Redis 儲存原文及對話內容，應視為敏感資料。
-- 所有 Gemini 原生 `generateContent` 呼叫均透過 Redis 原子共用日／分鐘計數器；**嘗試呼叫也計數**，避免免費配額耗盡仍自動重試。若 Redis 不可用即停止呼叫。這是本專案保護上限，不代表 Google 官方的真實配額。
+- **順序與不遺失**：Webhook 依 LINE 的順序逐一排入 FIFO 佇列。Worker 以 Redis 原子操作取得「事件租約」與「使用者租約」（70 秒，略長於 Vercel 55 秒上限）。同一使用者仍在處理時，下一則回 503 交給 QStash 重送，不會被丟棄或插隊。
+- **去重**：以 `webhookEventId` 去重；已完成的事件再送來直接回 200，不再呼叫 Gemini 或推送。
+- **中斷復原**：AI 回覆在推送前先存入 Redis。推送失敗（Worker 中斷、網路錯誤）時回 503，重送時直接推送已存的回覆，不會重新呼叫 Gemini，並沿用同一個 `X-Line-Retry-Key`。LINE 回 409（同一 retry key 已受理）視為成功。
+- **Redis 故障**：取不到租約或讀寫失敗就回 503，不呼叫 Gemini、不推送；處理中途失敗會釋放租約，讓重送可以繼續。
+- **用量計數**：文字、圖片、語音共用同一組每日／每分鐘計數，**每次 Gemini 請求計一次**，語音的「轉錄」與「回答」各計一次。達上限或 Gemini 回 429 時，推送「已達免費額度上限」並結束該事件，不重試、不換模型。
+- **跨執行個體狀態**：對話記憶（prompt）、摘要／翻譯用的歷史、使用者啟用／停用狀態都存在 Redis（記憶與歷史保留 7 天），每次 Worker 執行時重新載入。
 
-**目前限制及驗收門檻：**
-- 只在 `LINE_ASYNC_ENABLED=true` 的工作者路徑強制共用配額；舊同步模式不適用此共享額度保護。
-- 長時間並行操作會遇到使用者租約衝突，交由 QStash 重試；超過重試上限時要到 QStash DLQ 檢查，**不能保證零訊息遺失**。
-- Vercel 函式上限為 55 秒；若 Gemini 或外部服務逾時，QStash 可能重送，必須在 Preview 確認沒有多次模型呼叫。
-- 開啟此模式前，必須先在隔離測試 LINE Channel、Preview、Redis/QStash Free 環境驗證：Webhook 2xx 延遲、簽章拒絕、同一 `webhookEventId` 重送、Redis 故障、429、跨實例對話、短語音和 LINE Push 額度。
-- 沒有正式 API Key、QStash 或 Redis 憑證便無法驗證真實端到端行為；此階段不應合併到 `main` 或啟用正式環境。
+### 5.4 尚未驗證／已知限制
+
+- **全部尚未實測**：上面的行為只用模擬的 LINE、QStash、Redis、Gemini 驗證過。
+- **QStash**：
+  - 佇列 parallelism 1 的 FIFO 行為、重送間隔、重送次數上限（目前設 `Upstash-Retries: 4`）都依官方文件設定，沒有實測。
+  - 重送用完會進 DLQ（保留 3 天），需要人工處理，**不能保證零遺失**。
+  - 佇列一次只處理一則，前一則重送時後面的訊息會等待；免費方案的每日訊息數也包含重送。
+- **跨 Webhook 的順序**：同一批事件依序排入；LINE 若同時發出兩個不同的 Webhook 請求，兩者的排入先後無法保證。
+- **重複呼叫 Gemini**：Gemini 已回覆、但回覆存入 Redis 前 Worker 就中斷時，重送會再呼叫一次 Gemini，並多計一次用量。
+- **LINE Push**：
+  - 月額度用完後推送會失敗，Worker 回 503 並重送到 DLQ，會額外消耗 QStash 額度。
+  - 409 的處理依 LINE 文件實作，沒有實測。
+- **Gemini 延遲**：語音需要兩次 Gemini 呼叫，再加上 LINE 下載、Redis 讀寫，可能接近 55 秒上限。
+- **Redis 內的資料**：Redis 會存對話原文與使用者顯示名稱，請視為敏感資料。
+- **Preview 登入保護**：Vercel 的 Deployment Protection 開著時，LINE 和 QStash 都無法呼叫 Preview，需要關閉或設定 Bypass。
+
+### 5.5 驗收清單（測試 LINE Channel + Preview + Free 方案）
+
+1. Webhook Verify 成功，且 Webhook 在 1～2 秒內回 200。
+2. 錯誤簽章的請求，`/webhook` 和 `/api/worker` 都回 403。
+3. 連續快速傳 3 則文字，回覆順序正確、沒有遺漏。
+4. 在 QStash Console 重送同一則訊息，不會產生第二次回覆或第二次 Gemini 呼叫。
+5. 文字、圖片、短語音各一次，Redis 的每日計數分別加 1、1、2。
+6. 把 `GEMINI_DAILY_REQUEST_LIMIT` 設為很小的值，確認會推送「已達免費額度上限」。
+7. 傳「關閉自動回覆」、重新部署後再傳訊息，機器人保持不回覆；傳「開啟自動回覆」後恢復。
+8. 重新部署後追問，回覆仍記得前文。
+9. 在 LINE Official Account Manager 確認 Push 訊息有計入月額度，且剩餘額度足夠。
