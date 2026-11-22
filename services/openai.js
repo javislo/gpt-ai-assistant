@@ -88,7 +88,7 @@ const createImage = ({
 const createAudioTranscriptions = ({
   buffer,
   file,
-  model = MODEL_WHISPER_1,
+  model = config.OPENAI_TRANSCRIPTION_MODEL,
 }) => {
   const formData = new FormData();
   formData.append('file', buffer, file);
