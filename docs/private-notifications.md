@@ -64,3 +64,36 @@
 - LINE Access Token、通知密鑰及 userId 都不提交至 GitHub。
 - 首次手動測試成功後才開啟排程；運作期間應觀察 LINE 剩餘免費訊息額度與 Vercel 日誌。
 - 本功能目前不具備真正持久化待辦、每日完整 AI 總結或跨服務整合；這些是後續模組。
+
+
+## 5. n8n Cloud 可匯入工作流程（2026-11）
+
+本分支已提供兩個 **關閉狀態（`active=false`）、不含憑證** 的 n8n JSON：
+
+- [每日 08:00 早報（台北市天氣）](../workflows/n8n-private-morning.json)
+- [每日 21:00 晚間回顧](../workflows/n8n-private-evening.json)
+
+**匯入**：n8n Cloud → 開啟 / 建立 workflow → 右上 `…` → **Import from File（從檔案匯入）** → 選下載的 JSON。請確認匯入後工作流程仍為 `Inactive`，並在 **Workflow Settings → Timezone** 設定 `Asia/Taipei`。
+
+**每日早報流程：**
+
+`Schedule Trigger 08:00` / `Manual Trigger` → `Open-Meteo 台北市天氣` → `組合每日早報` → `LINE 私人 Push`。
+
+氣象資料使用免費非商用 [Open-Meteo](https://open-meteo.com/en/docs) API，經緯度預設台北市中心（25.0330, 121.5654）；可在 `Open-Meteo 台北市天氣` 節點調整。來源要求署名，早報內已保留署名。資料取得失敗會導致流程停止（不推送虛構天氣）。若 API 正常回應但缺少必要溫度／雨量資料，改顯示「天氣資料暫時無法取得」。行事曆與待辦尚未連線，訊息會明示「尚未連接」，絕不產生虛構的個人事項。
+
+**晚間回顧流程：**
+
+`Schedule Trigger 21:00` / `Manual Trigger` → `組合晚間回顧` → `LINE 私人 Push`。
+
+晚間內容為固定三個回顧問題，未存取或推論實際完成情形。
+
+**設定 HTTP Request 認證：**
+
+1. 在兩個 workflow 的 `LINE 私人 Push` 節點選擇 `Authentication: Generic Credential Type`，類型 `Header Auth`，建立相同的私密 n8n credential。
+2. Header Name = `Authorization`；Header Value = `Bearer ` 後接 **Vercel `AGENT_NOTIFY_SECRET` 的值**，中間保留一個空格。憑證值直接存在 n8n credential，**不寫入 JSON 節點**。
+3. JSON 請求本體由前一個 Code 節點提供 `id` 與 `text`。勿加入 `to`、`userId` 或其他收件者欄位；API 會拒絕。
+4. `URL` 已預填本功能分支的固定 Preview URL：`https://gpt-ai-assistant-git-feat-private-line-notifications-javis-8772.vercel.app/api/notify`。此分支與 PR #2 LINE 雙向對話分支**不同**；其 Vercel Authentication／Preview 例外需要單獨處理。優先保留登入保護，評估 Automation Bypass 或限本分支的例外，不能自動解除整個專案保護。
+
+**驗收前禁止啟用通知：** 本功能分支的 Vercel `AGENT_NOTIFICATIONS_ENABLED=false`（僅 Preview）。你必須先在同一 Preview 分支設置 `AGENT_NOTIFY_SECRET`（Sensitive）與 `LINE_PUSH_USER_ID`（Sensitive），核對實際的收件者與免費配額；其後才把通知旗標改成 `true` 並重新部署這個**功能分支**。先用手動觸發確定 **單則** Push 送達，才啟用 Schedule Trigger。另一個原本的 LINE 雙向對話 Preview 與 Production 不需修改。
+
+**費用注意：** n8n Cloud 試用期後並非永久免費。2026 年 11 月 n8n 官方 [Pricing](https://n8n.io/pricing/) 列 Starter 年繳折合 €20/月、每月 2,500 次執行。早報與晚間回顧各每日一次，合計約 60–62 次執行/月（不含手動測試、重試）。LINE Push 有官方帳號每月訊息額度，必須檢查餘額。
