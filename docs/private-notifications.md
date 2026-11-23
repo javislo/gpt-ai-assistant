@@ -50,7 +50,7 @@
 2. Schedule Trigger 設每天 08:00；測試時先使用 Manual Trigger。
 3. Edit Fields 準備 `id`、`text`，例如 `morning-{{ $now.toFormat('yyyy-LL-dd') }}` 與固定的測試句。
 4. HTTP Request：POST 至上述分支網域的 `/api/notify`；傳送 JSON Body。
-5. HTTP Request Authentication：使用 **Generic Credential Type → Header Auth**，Header Name = `Authorization`、Value = `Bearer <AGENT_NOTIFY_SECRET>`，只儲存在 n8n credentials。
+5. HTTP Request Authentication：使用 **Generic Credential Type → Custom Auth**，在同一個加密 Credential 的 JSON 內設定 `Authorization` 與 `x-vercel-protection-bypass` 雙標頭；詳見第 5 節。不要將密鑰放進 workflow JSON。
 6. 先使用 Manual Execute 測試並檢查 HTTP 200；**不要**在驗收完成前啟用工作流程。
 7. 驗收後新增晚間 21:00 的獨立 workflow（例如 `evening-YYYY-MM-DD`），並設勿擾時段及每日通知上限，避免重複排程。
 
@@ -89,10 +89,21 @@
 
 **設定 HTTP Request 認證：**
 
-1. 在兩個 workflow 的 `LINE 私人 Push` 節點選擇 `Authentication: Generic Credential Type`，類型 `Header Auth`，建立相同的私密 n8n credential。
-2. Header Name = `Authorization`；Header Value = `Bearer ` 後接 **Vercel `AGENT_NOTIFY_SECRET` 的值**，中間保留一個空格。憑證值直接存在 n8n credential，**不寫入 JSON 節點**。
+1. 在 [Vercel Deployment Protection 設定](https://vercel.com/javis-8772/gpt-ai-assistant/settings/deployment-protection) 中，找到 **Protection Bypass for Automation**，為 n8n 建立一組獨立的自動化存取密鑰。此密鑰可繞過**整個 Vercel 專案**的部署保護（不只本分支），請謹慎儲存、可隨時撤銷。**不要**把密鑰放進網址或貼到聊天。
+2. 在兩個 workflow 的 `LINE 私人 Push` 節點選擇 `Authentication: Generic Credential Type`、`Generic Auth Type: Custom Auth`，新建相同的 **Custom Auth** 加密 Credential。在此 Credential 的 JSON 欄位填入下列格式，並以自己取得的密鑰取代兩個尖括號文字（這是教學範本，不是實際密鑰）：
+
+   ```json
+   {
+     "headers": {
+       "Authorization": "Bearer <AGENT_NOTIFY_SECRET>",
+       "x-vercel-protection-bypass": "<VERCEL_AUTOMATION_BYPASS_SECRET>"
+     }
+   }
+   ```
+
+   `AGENT_NOTIFY_SECRET` 必須與 Vercel 同分支 Preview 變數相同。**Custom Auth 中儲存的是加密憑證，不應把內容直接貼進節點 Headers、URL、GitHub 或聊天。**
 3. JSON 請求本體由前一個 Code 節點提供 `id` 與 `text`。勿加入 `to`、`userId` 或其他收件者欄位；API 會拒絕。
-4. `URL` 已預填本功能分支的固定 Preview URL：`https://gpt-ai-assistant-git-feat-private-line-notifications-javis-8772.vercel.app/api/notify`。此分支與 PR #2 LINE 雙向對話分支**不同**；其 Vercel Authentication／Preview 例外需要單獨處理。優先保留登入保護，評估 Automation Bypass 或限本分支的例外，不能自動解除整個專案保護。
+4. `URL` 已預填本功能分支固定 Preview URL：`https://gpt-ai-assistant-git-feat-private-line-notifications-javis-8772.vercel.app/api/notify`。這與 PR #2 LINE 雙向對話分支**不同**，本方案不必公開新分支的網域。
 
 **驗收前禁止啟用通知：** 本功能分支的 Vercel `AGENT_NOTIFICATIONS_ENABLED=false`（僅 Preview）。你必須先在同一 Preview 分支設置 `AGENT_NOTIFY_SECRET`（Sensitive）與 `LINE_PUSH_USER_ID`（Sensitive），核對實際的收件者與免費配額；其後才把通知旗標改成 `true` 並重新部署這個**功能分支**。先用手動觸發確定 **單則** Push 送達，才啟用 Schedule Trigger。另一個原本的 LINE 雙向對話 Preview 與 Production 不需修改。
 
