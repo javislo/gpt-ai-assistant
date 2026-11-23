@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/notify",
+      "destination": "/api/notify"
+    },
+    {
       "source": "/api/worker",
       "destination": "/api/worker"
     },
