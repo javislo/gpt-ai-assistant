@@ -1,0 +1,117 @@
+{
+  "name": "LINE Gemini Agent｜每天21:00回顧（Preview）",
+  "nodes": [
+    {
+      "id": "11d3d8cf-33e4-42a8-a92b-76e47cddeb88",
+      "name": "每日 21:00 自動排程",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -760,
+        -100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "dce28976-5c91-4f4f-8735-b5ba9fb4a58a",
+      "name": "手動測試（不啟用排程）",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        120
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "3f838c53-2a50-47bf-b50d-c3b3655ee0a1",
+      "name": "組合晚間回顧",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -330,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// 固定晚間提問，不假設使用者今日已完成任何事項。\nconst parts = new Intl.DateTimeFormat('en-US', {timeZone:'Asia/Taipei', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date());\nconst pick = (key) => parts.find((x) => x.type === key)?.value;\nconst ymd = [pick('year'),pick('month'),pick('day')].join('-');\nconst text = [\n  '🌙 私人 LINE AI Agent｜晚間回顧',\n  '📅 ' + ymd + '（台灣時間）',\n  '',\n  '1️⃣ 今天完成了最重要的哪件事？',\n  '2️⃣ 有哪件待辦需要移到明天？',\n  '3️⃣ 明天最優先要處理的是什麼？',\n  '',\n  '💬 可直接回覆這個 LINE 對話，與 Gemini 討論。',\n  '註：目前未連接待辦資料庫，不會自行判定完成狀態。',\n].join('\\n');\nreturn [{ json: { id: 'evening-' + ymd, text } }];"
+      }
+    },
+    {
+      "id": "35cf493d-5701-4813-bcbd-d5646d0efcab",
+      "name": "LINE 私人 Push（憑證需自行設定）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://gpt-ai-assistant-git-feat-private-line-notifications-javis-8772.vercel.app/api/notify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $json.id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "每日 21:00 自動排程": {
+      "main": [
+        [
+          {
+            "node": "組合晚間回顧",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "手動測試（不啟用排程）": {
+      "main": [
+        [
+          {
+            "node": "組合晚間回顧",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "組合晚間回顧": {
+      "main": [
+        [
+          {
+            "node": "LINE 私人 Push（憑證需自行設定）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Taipei",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
