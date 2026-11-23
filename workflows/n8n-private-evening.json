@@ -59,7 +59,7 @@
         "method": "POST",
         "url": "https://gpt-ai-assistant-git-feat-private-line-notifications-javis-8772.vercel.app/api/notify",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ id: $json.id, text: $json.text }) }}",
