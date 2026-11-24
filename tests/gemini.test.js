@@ -16,6 +16,7 @@ import {
   EVENT_TYPE_MESSAGE, MESSAGE_TYPE_AUDIO, MESSAGE_TYPE_IMAGE, MESSAGE_TYPE_TEXT, SOURCE_TYPE_USER,
 } from '../services/line.js';
 import { TRANSCRIPTION_INSTRUCTION } from '../utils/generate-transcription.js';
+import { PLAIN_TEXT_INSTRUCTION, toPlainText } from '../utils/generate-completion.js';
 import { MOCK_USER_01, TIMEOUT } from './utils.js';
 
 jest.mock('axios', () => jest.requireActual('./mocks/axios.js').default());
@@ -95,7 +96,8 @@ test('text message: native generateContent request and text reply', async () => 
   expect(url).toEqual(GENERATE_CONTENT_URL);
   expect(url).not.toContain('/chat/completions');
 
-  expect(body.systemInstruction.parts[0].text).toEqual(t('__COMPLETION_DEFAULT_SYSTEM_PROMPT'));
+  expect(body.systemInstruction.parts[0].text).toContain(t('__COMPLETION_DEFAULT_SYSTEM_PROMPT'));
+  expect(body.systemInstruction.parts[0].text).toContain(PLAIN_TEXT_INSTRUCTION);
   body.contents.forEach(({ role, parts }) => {
     expect(['user', 'model']).toContain(role);
     expect(parts.length).toBeGreaterThan(0);
@@ -197,4 +199,14 @@ test('empty Gemini response is reported instead of sending a blank reply', async
   await handleEvents([createEvent({ type: MESSAGE_TYPE_TEXT, text: '你好' })]);
 
   expect(replies()).toEqual([[{ type: 'text', text: t('__ERROR_EMPTY_COMPLETION')('SAFETY') }]]);
+}, TIMEOUT);
+
+test('Markdown markers are removed because LINE shows replies as plain text', async () => {
+  expect(toPlainText('請告訴我您的**地區**或**城市**喔！')).toEqual('請告訴我您的地區或城市喔！');
+  expect(toPlainText('## 今日天氣\n* 多雲\n* 降雨機率 `20%`')).toEqual('今日天氣\n• 多雲\n• 降雨機率 20%');
+  expect(toPlainText('2 * 3 = 6')).toEqual('2 * 3 = 6');
+
+  gemini().post.mockResolvedValue(geminiResponse('**重點**：記得帶傘'));
+  await handleEvents([createEvent({ type: MESSAGE_TYPE_TEXT, text: '你好' })]);
+  expect(replies()).toEqual([[{ type: 'text', text: '重點：記得帶傘' }]]);
 }, TIMEOUT);

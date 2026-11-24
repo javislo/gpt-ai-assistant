@@ -9,20 +9,24 @@ import { getWeatherProfile, getWeatherProfiles } from './store.js';
 
 export const NO_LOCATION_CONTEXT = '使用者問了天氣，但還沒有提供位置，也沒有提到縣市。請簡短請使用者在 LINE 聊天室按「＋」→「位置資訊」傳送位置，或在問題中說明縣市。';
 
+export const NO_WEATHER_DATA_CONTEXT = '目前沒有可用的即時天氣資料。不要編造天氣、溫度或降雨機率；請簡短說明現在查不到天氣，並建議使用者查看中央氣象署網站或 App。';
+
 /**
  * Builds the extra system text for a weather question, or '' when the message
- * is not about weather or the weather API is not configured. Never throws: if
- * the forecast cannot be fetched, the chat continues without it.
+ * is not about weather. Never throws: without forecast data (no CWA key, or the
+ * request failed) it tells Gemini not to invent one.
  */
 export const getWeatherContextFor = async (userId, text) => {
-  if (!hasWeatherApi() || !isWeatherQuestion(text)) return '';
+  if (!isWeatherQuestion(text)) return '';
+  // Without forecast data, keep Gemini from inventing a forecast.
+  if (!hasWeatherApi()) return NO_WEATHER_DATA_CONTEXT;
   try {
     const county = findCountyInText(text) || (await getWeatherProfile(userId))?.county;
     if (!county) return NO_LOCATION_CONTEXT;
     return buildWeatherContext(await getCountyForecast(county));
   } catch (err) {
     console.error('Weather context failed:', err.message);
-    return '';
+    return NO_WEATHER_DATA_CONTEXT;
   }
 };
 

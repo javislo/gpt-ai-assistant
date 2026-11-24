@@ -11,7 +11,7 @@ import { COMMAND_WEATHER_SUBSCRIBE, COMMAND_WEATHER_UNSUBSCRIBE } from '../app/h
 import {
   findCountyInText, isWeatherQuestion, parseCountyForecast, resolveCounty,
 } from '../app/weather/forecast.js';
-import { NO_LOCATION_CONTEXT } from '../app/weather/index.js';
+import { NO_LOCATION_CONTEXT, NO_WEATHER_DATA_CONTEXT } from '../app/weather/index.js';
 import { CWA_BASE_URL } from '../services/cwa.js';
 import storage from '../storage/index.js';
 import { retryKeyForEvent } from '../utils/reply-message.js';
@@ -161,7 +161,7 @@ test('weather question without any location asks the user to share it', async ()
   expect(geminiSystem()).toContain(NO_LOCATION_CONTEXT);
 });
 
-test('unchanged behaviour: non-weather questions, missing CWA key, CWA failure', async () => {
+test('non-weather questions unchanged; no forecast data means Gemini must not invent one', async () => {
   await handleEvents([location('台北市中正區')]);
   jest.clearAllMocks();
 
@@ -172,12 +172,13 @@ test('unchanged behaviour: non-weather questions, missing CWA key, CWA failure',
   delete process.env.CWA_API_KEY;
   await handleEvents([text('明天要帶傘嗎')]);
   expect(cwa().get).not.toHaveBeenCalled();
-  expect(geminiSystem(1)).not.toContain('中央氣象署');
+  expect(geminiSystem(1)).toContain(NO_WEATHER_DATA_CONTEXT);
 
   process.env.CWA_API_KEY = 'dummy-cwa-key';
   cwa().get.mockRejectedValueOnce(new Error('timeout'));
   await handleEvents([text('明天要帶傘嗎')]);
   expect(gemini().post).toHaveBeenCalledTimes(3);
+  expect(geminiSystem(2)).toContain(NO_WEATHER_DATA_CONTEXT);
   expect(replies()).toHaveLength(3);
 });
 

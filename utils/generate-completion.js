@@ -92,13 +92,29 @@ const buildGenerationConfig = () => {
  * @param {Object} data
  * @returns {Completion}
  */
+// LINE shows replies as plain text, so Markdown markers would appear literally.
+export const PLAIN_TEXT_INSTRUCTION = '回覆會顯示在 LINE 聊天室：請用純文字回答，不要使用 Markdown 符號（例如 **粗體**、# 標題、`程式碼`）。';
+
+/**
+ * Removes Markdown emphasis, headings and inline code markers that Gemini may
+ * still produce, keeping the text itself.
+ * @param {string} text
+ * @returns {string}
+ */
+export const toPlainText = (text) => text
+  .replace(/\*\*(.+?)\*\*/gs, '$1')
+  .replace(/__(.+?)__/gs, '$1')
+  .replace(/`([^`\n]+)`/g, '$1')
+  .replace(/^#{1,6}[ \t]+/gm, '')
+  .replace(/^[ \t]*\*[ \t]+/gm, '• ');
+
 const toCompletion = (data) => {
   const [candidate] = data?.candidates || [];
-  const text = (candidate?.content?.parts || [])
+  const raw = (candidate?.content?.parts || [])
     .filter((part) => part.text && !part.thought)
     .map((part) => part.text)
-    .join('')
-    .trim();
+    .join('');
+  const text = toPlainText(raw).trim();
   if (!text) {
     const reason = data?.promptFeedback?.blockReason || candidate?.finishReason || 'UNKNOWN';
     throw new Error(t('__ERROR_EMPTY_COMPLETION')(reason));
@@ -125,7 +141,7 @@ const generateCompletion = async ({
   const { systemInstruction: base, contents } = toGeminiRequest(messages);
   // Extra context for this request only (e.g. a weather forecast); it is not
   // written to the conversation memory.
-  const systemText = [base?.parts?.[0]?.text, systemContext].filter(Boolean).join('\n\n');
+  const systemText = [base?.parts?.[0]?.text, PLAIN_TEXT_INSTRUCTION, systemContext].filter(Boolean).join('\n\n');
   const systemInstruction = systemText ? { parts: [{ text: systemText }] } : undefined;
   const { data } = await generateContent({
     model: hasImage(messages) ? config.GEMINI_VISION_MODEL : config.GEMINI_MODEL,
