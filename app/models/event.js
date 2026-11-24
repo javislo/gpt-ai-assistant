@@ -4,6 +4,7 @@ import {
   MESSAGE_TYPE_STICKER,
   MESSAGE_TYPE_TEXT,
   MESSAGE_TYPE_IMAGE,
+  MESSAGE_TYPE_LOCATION,
   SOURCE_TYPE_GROUP,
 } from '../../services/line.js';
 
@@ -68,6 +69,13 @@ class Event {
    */
   get isImage() {
     return this.message.type === MESSAGE_TYPE_IMAGE;
+  }
+
+  /**
+   * @returns {boolean}
+   */
+  get isLocation() {
+    return this.message.type === MESSAGE_TYPE_LOCATION;
   }
 
   /**

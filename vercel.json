@@ -13,5 +13,11 @@
     "api/**/*": {
       "maxDuration": 55
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/weather",
+      "schedule": "0 23 * * *"
+    }
+  ]
 }

@@ -117,11 +117,16 @@ const assertApiKey = () => {
  */
 const generateCompletion = async ({
   prompt,
+  systemContext = '',
 }) => {
   if (config.APP_ENV !== 'production') return new Completion({ text: MOCK_TEXT_OK });
   assertApiKey();
   const { messages } = prompt;
-  const { systemInstruction, contents } = toGeminiRequest(messages);
+  const { systemInstruction: base, contents } = toGeminiRequest(messages);
+  // Extra context for this request only (e.g. a weather forecast); it is not
+  // written to the conversation memory.
+  const systemText = [base?.parts?.[0]?.text, systemContext].filter(Boolean).join('\n\n');
+  const systemInstruction = systemText ? { parts: [{ text: systemText }] } : undefined;
   const { data } = await generateContent({
     model: hasImage(messages) ? config.GEMINI_VISION_MODEL : config.GEMINI_MODEL,
     systemInstruction,

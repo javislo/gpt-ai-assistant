@@ -55,6 +55,32 @@ Vercel 專案 → Settings → Environment Variables，新增或確認：
 - **對話記憶（尚未解決）**：現有 `Map` 是執行個體記憶體，Vercel 冷啟動、擴展或重新部署後可能遺失對話。自動化測試只驗證同一程序中的對話，**不等於**持久化記憶。
 - **免費限制**：`429` 只代表已遭 API 拒絕，尚無跨執行個體的每日呼叫計數器。要防止意外超額，務必確認 Gemini API 金鑰屬於未連結付費帳務的 Free Tier 專案，不要將 429 錯誤視為完整的成本控制。
 
+## 4.5 天氣功能（中央氣象署）
+
+沒有設定 `CWA_API_KEY` 時，天氣功能完全不啟用，機器人照原本方式運作。
+
+**使用方式**
+- **記住位置**：在 LINE 聊天室按「＋」→「位置資訊」傳送位置。機器人會記住所在縣市，並立刻回覆今明天氣。換地方時再傳一次即可。
+- **一問一答**：問「明天要帶傘嗎」「高雄冷不冷」這類問題時，會先抓中央氣象署的 36 小時預報給 Gemini 參考再回答。問題裡有提到縣市就用那個縣市，沒提到就用你傳過的位置。
+- **每天早上推播**：傳過位置就會自動訂閱。傳「取消天氣推播」可以關閉，傳「開啟天氣推播」可以恢復。推播內容不經 Gemini，不佔 Gemini 額度。
+
+**設定**
+
+| 變數 | 用途 |
+| --- | --- |
+| `CWA_API_KEY` | 中央氣象署開放資料平臺的授權碼（opendata.cwa.gov.tw 註冊會員後取得，免費） |
+| `CRON_SECRET` | 自己產生的隨機字串（例如 `openssl rand -hex 32`），保護推播用的 `/api/cron/weather` |
+
+**位置要能長期保存**：位置存在 Upstash Redis（有設 `UPSTASH_REDIS_REST_URL`／`TOKEN` 時），或存在 `VERCEL_ACCESS_TOKEN` 的 Vercel 環境變數。兩者都沒有時，位置只暫存在伺服器記憶體，Vercel 換執行個體或重新部署後需要再傳一次，早上推播也可能找不到你的位置。
+
+**早上推播的排程**
+- **Production**：`vercel.json` 已設定 Vercel Cron 每天 UTC 23:00（台北早上 7:00）呼叫 `/api/cron/weather`。Vercel 會自動帶 `Authorization: Bearer $CRON_SECRET`。Hobby 方案的 Cron 每天最多一次，觸發時間可能在該小時內任何時刻。
+- **Preview**：Vercel Cron 只會在 Production 執行。要在 Preview 測試推播，可以用免費的外部排程服務（例如 cron-job.org 或 Upstash QStash Schedule），每天台北時間 7:00 以 GET 呼叫 `https://你的Preview網址/api/cron/weather`，並加上標頭 `Authorization: Bearer 你的CRON_SECRET`。
+- 同一天重複觸發不會重複推送，因為每位使用者每天使用固定的 LINE retry key。每次最多推送 20 位使用者。
+- **LINE 額度**：每位訂閱者每天 1 則 Push，一個月約 30 則，會計入 LINE 官方帳號的免費月額度。
+
+**尚未驗證**：中央氣象署 F-C0032-001 的回應格式是依公開範例實作，沒有用真實授權碼測試。目前天氣觀測、天氣特報（颱風、豪雨）這次沒有做，需要先用真實回應確認格式。
+
 ## 5. 可選：LINE 非同步工作流程（預設關閉）
 
 > 目前只完成程式與模擬整合測試：沒有建立第三方帳號、沒有部署 Vercel、沒有呼叫真實 Gemini、QStash、Redis 或 LINE。**在完成第 5.4 節的驗收前，維持 `LINE_ASYNC_ENABLED=false`。**

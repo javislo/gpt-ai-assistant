@@ -6,6 +6,7 @@ import { COMMAND_BOT_CONTINUE, COMMAND_BOT_FORGET, COMMAND_BOT_TALK } from '../c
 import Context from '../context.js';
 import { updateHistory } from '../history/index.js';
 import { getPrompt, setPrompt } from '../prompt/index.js';
+import { getWeatherContextFor } from '../weather/index.js';
 
 /**
  * @param {Context} context
@@ -34,7 +35,10 @@ const exec = (context) => check(context) && (
         const { trimmedText } = context;
         prompt.writeImage(ROLE_HUMAN, trimmedText).write(ROLE_AI);
       }
-      const { text, isFinishReasonStop } = await generateCompletion({ prompt });
+      const systemContext = (context.event.isText || context.event.isAudio)
+        ? await getWeatherContextFor(context.userId, context.trimmedText)
+        : '';
+      const { text, isFinishReasonStop } = await generateCompletion({ prompt, systemContext });
       prompt.patch(text);
       setPrompt(context.userId, prompt);
       updateHistory(context.id, (history) => history.write(config.BOT_NAME, text));

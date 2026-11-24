@@ -12,6 +12,7 @@ export const MESSAGE_TYPE_TEXT = 'text';
 export const MESSAGE_TYPE_STICKER = 'sticker';
 export const MESSAGE_TYPE_AUDIO = 'audio';
 export const MESSAGE_TYPE_IMAGE = 'image';
+export const MESSAGE_TYPE_LOCATION = 'location';
 export const MESSAGE_TYPE_TEMPLATE = 'template';
 
 export const TEMPLATE_TYPE_BUTTONS = 'buttons';

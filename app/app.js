@@ -14,6 +14,7 @@ import {
   searchHandler,
   talkHandler,
   versionHandler,
+  weatherHandler,
 } from './handlers/index.js';
 import Context from './context.js';
 import Event from './models/event.js';
@@ -36,6 +37,7 @@ const handleContext = async (context) => (
   || retryHandler(context)
   || searchHandler(context)
   || versionHandler(context)
+  || weatherHandler(context)
   || talkHandler(context)
   || context
 );
@@ -47,7 +49,7 @@ const handleEvents = async (events = []) => (
         events
           .map((event) => new Event(event))
           .filter((event) => event.isMessage)
-          .filter((event) => event.isText || event.isAudio || event.isImage)
+          .filter((event) => event.isText || event.isAudio || event.isImage || event.isLocation)
           .map((event) => new Context(event))
           .map((context) => context.initialize()),
       ))

@@ -90,6 +90,10 @@ class Context {
     if (this.event.isImage) {
       return this.transcription.trim();
     }
+    if (this.event.isLocation) {
+      const { title, address } = this.event.message;
+      return [title, address].filter(Boolean).join(' ') || '?';
+    }
     return '?';
   }
 

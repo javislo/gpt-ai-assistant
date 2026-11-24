@@ -174,4 +174,19 @@ export const saveStorageItem = async (name, value) => {
   if (fields.length > 0) await redis('HSET', STORAGE_KEY, ...fields);
 };
 
+// Weather profiles (shared LINE location and morning-push subscription), one
+// hash field per user.
+const WEATHER_KEY = 'line-agent:weather:v1';
+
+export const loadWeatherProfiles = async () => {
+  const flat = (await redis('HGETALL', WEATHER_KEY)) || [];
+  const profiles = {};
+  for (let i = 0; i + 1 < flat.length; i += 2) profiles[flat[i]] = JSON.parse(flat[i + 1]);
+  return profiles;
+};
+
+export const saveWeatherProfile = async (userId, profile) => {
+  await redis('HSET', WEATHER_KEY, userId, JSON.stringify(profile));
+};
+
 export const eventFingerprint = (eventId) => hash(eventId);
