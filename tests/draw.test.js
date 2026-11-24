@@ -3,8 +3,9 @@ import {
 } from '@jest/globals';
 import { handleEvents, getPrompt, removePrompt } from '../app/index.js';
 import { COMMAND_BOT_DRAW } from '../app/commands/index.js';
+import { t } from '../locales/index.js';
 import {
-  createEvents, TIMEOUT, MOCK_USER_01, MOCK_TEXT_OK,
+  createEvents, TIMEOUT, MOCK_USER_01,
 } from './utils.js';
 
 beforeEach(() => {
@@ -25,11 +26,13 @@ test('COMMAND_BOT_DRAW', async () => {
   } catch (err) {
     console.error(err);
   }
-  expect(getPrompt(MOCK_USER_01).sentences.length).toEqual(4);
-  const replies = results.map(({ messages }) => messages.map(({ originalContentUrl }) => originalContentUrl));
+  // Image generation is disabled on the Gemini free tier: nothing is generated
+  // or written to the prompt, and the user is told the feature is off.
+  expect(getPrompt(MOCK_USER_01).messages.length).toEqual(3);
+  const replies = results.map(({ messages }) => messages.map(({ type, text }) => ({ type, text })));
   expect(replies).toEqual(
     [
-      [MOCK_TEXT_OK],
+      [{ type: 'text', text: t('__ERROR_IMAGE_GENERATION_DISABLED') }],
     ],
   );
 }, TIMEOUT);

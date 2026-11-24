@@ -1,3 +1,23 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+  "rewrites": [
+    {
+      "source": "/api/worker",
+      "destination": "/api/worker"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/**/*": {
+      "maxDuration": 55
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/weather",
+      "schedule": "0 23 * * *"
+    }
+  ]
 }
