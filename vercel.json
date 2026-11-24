@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/redis-health",
+      "destination": "/api/redis-health"
+    },
+    {
       "source": "/api/worker",
       "destination": "/api/worker"
     },
