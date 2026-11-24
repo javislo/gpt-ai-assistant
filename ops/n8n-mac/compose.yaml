@@ -1,0 +1,20 @@
+# Local-only Mac n8n Community Edition for the private LINE Gemini Agent.
+# Run 'docker volume create n8n_data' once before 'docker compose up -d'.
+# Schedule times use Asia/Taipei. Do not expose port 5678 to the public network.
+name: private-line-n8n
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      TZ: Asia/Taipei
+      GENERIC_TIMEZONE: Asia/Taipei
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:
+    external: true
