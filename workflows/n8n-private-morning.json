@@ -1,0 +1,145 @@
+{
+  "name": "LINE Gemini Agent｜每天08:00早報（Preview）",
+  "nodes": [
+    {
+      "id": "11d3d8cf-33e4-42a8-a92b-76e47cddeb88",
+      "name": "每日 08:00 自動排程",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -760,
+        -100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "dce28976-5c91-4f4f-8735-b5ba9fb4a58a",
+      "name": "手動測試（不啟用排程）",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        120
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "6b0df831-7d2a-43e8-886d-9cad196c0341",
+      "name": "Open-Meteo 台北市天氣",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -470,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=25.0330&longitude=121.5654&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=1&timezone=Asia%2FTaipei",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "3f838c53-2a50-47bf-b50d-c3b3655ee0a1",
+      "name": "組合每日早報",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -170,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// n8n Cloud: Open-Meteo 天氣資訊。未連接的私人資料一律明確標示，禁止編造。\nconst parts = new Intl.DateTimeFormat('en-US', {timeZone:'Asia/Taipei', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date());\nconst pick = (key) => parts.find((x) => x.type === key)?.value;\nconst ymd = [pick('year'),pick('month'),pick('day')].join('-');\nconst weather = $input.first().json.daily || {};\nconst high = weather.temperature_2m_max?.[0];\nconst low = weather.temperature_2m_min?.[0];\nconst rain = weather.precipitation_probability_max?.[0];\nconst code = weather.weather_code?.[0];\nconst meaning = (n) => {\n  if (n === 0) return '晴朗';\n  if (n >= 1 && n <= 3) return '晴時多雲';\n  if (n === 45 || n === 48) return '有霧';\n  if ([51,53,55,56,57].includes(n)) return '毛毛雨';\n  if ([61,63,65,66,67,80,81,82].includes(n)) return '有雨';\n  if ([71,73,75,77,85,86].includes(n)) return '可能降雪';\n  if ([95,96,99].includes(n)) return '有雷雨';\n  return '天氣狀況未提供';\n};\nconst valid = [high,low,rain].every((v) => typeof v === 'number' && Number.isFinite(v));\nconst weatherText = valid ? [\n  '🌤 台北市今日天氣：' + meaning(code),\n  '🌡 溫度：' + low + '～' + high + '°C',\n  '☔ 最高降雨機率：' + rain + '%',\n].join('\\n') : '🌤 天氣資料暫時無法取得';\nconst text = [\n  '☀️ 私人 LINE AI Agent｜每日早報',\n  '📅 ' + ymd + '（台灣時間）',\n  '',\n  weatherText,\n  '',\n  '📆 今日行程：尚未連接個人行事曆',\n  '✅ 今日待辦：尚未連接待辦資料',\n  '🎯 建議：先確認今天最重要的一件事。',\n  '',\n  '天氣資料：Open-Meteo（預設台北市中心；預報僅供參考）',\n].join('\\n');\nreturn [{ json: { id: 'morning-' + ymd, text } }];"
+      }
+    },
+    {
+      "id": "35cf493d-5701-4813-bcbd-d5646d0efcab",
+      "name": "LINE 私人 Push（憑證需自行設定）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        100,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://gpt-ai-assistant-git-feat-private-line-notifications-javis-8772.vercel.app/api/notify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $json.id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "每日 08:00 自動排程": {
+      "main": [
+        [
+          {
+            "node": "Open-Meteo 台北市天氣",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "手動測試（不啟用排程）": {
+      "main": [
+        [
+          {
+            "node": "Open-Meteo 台北市天氣",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open-Meteo 台北市天氣": {
+      "main": [
+        [
+          {
+            "node": "組合每日早報",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "組合每日早報": {
+      "main": [
+        [
+          {
+            "node": "LINE 私人 Push（憑證需自行設定）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Taipei",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}

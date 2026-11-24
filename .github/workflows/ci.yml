@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - claude/cloud-environment-setup-bdcpo4
+      - feat/private-line-notifications
   pull_request:
     branches:
       - main
