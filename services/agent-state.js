@@ -21,6 +21,9 @@ const redis = async (...command) => {
   return data.result;
 };
 
+// Read-only probe; uses exactly the same REST client as application state.
+export const pingRedis = async () => (await redis('PING')) === 'PONG';
+
 // Lease TTL is a little longer than the Vercel maxDuration (55 s), so a lease left by
 // a crashed worker expires soon after the platform has stopped that invocation.
 export const LEASE_TTL_SECONDS = 70;
